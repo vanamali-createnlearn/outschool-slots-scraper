@@ -1,22 +1,15 @@
 import requests
-import re
+import json
+from bs4 import BeautifulSoup
 
 GRAPHQL_ENDPOINT = "https://outschool.com/graphql"
-HEADERS = {"content-type": "application/json"}
 
 QUERY = """
 query ClassDetailsSections($activityUid: ID!) {
   activity(uid: $activityUid) {
-    uid
-    is_ongoing_weekly
     paginatedFilteredSections(first: 50) {
-      totalCount
       data {
-        uid
-        activity_uid
-        end_time
         meetings {
-          uid
           start_time
           end_time
         }
@@ -26,20 +19,28 @@ query ClassDetailsSections($activityUid: ID!) {
 }
 """
 
-UID_PATTERN = r'"Activity:([a-f0-9\-]+)"'
+HEADERS = {
+    "content-type": "application/json"
+}
 
-def extract_activity_uid(url):
+def extract_activity_uid(url: str) -> str:
     r = requests.get(url)
     r.raise_for_status()
 
-    match = re.search(UID_PATTERN, r.text)
+    soup = BeautifulSoup(r.text, "html.parser")
+    script = soup.find("script", id="__NEXT_DATA__")
 
-    if not match:
-        raise RuntimeError("Could not locate activity UID in page Apollo state")
+    if not script:
+        raise RuntimeError("__NEXT_DATA__ script not found")
 
-    return match.group(1)
+    data = json.loads(script.string)
 
-def fetch_course_slots(course):
+    try:
+        return data["props"]["pageProps"]["activity"]["uid"]
+    except KeyError:
+        raise RuntimeError("Activity UID not found inside __NEXT_DATA__")
+
+def fetch_course_slots(course: dict):
     activity_uid = extract_activity_uid(course["url"])
 
     payload = {
@@ -52,14 +53,11 @@ def fetch_course_slots(course):
     r = requests.post(GRAPHQL_ENDPOINT, headers=HEADERS, json=payload)
     r.raise_for_status()
 
-    data = r.json()
-    sections = data["data"]["activity"]["paginatedFilteredSections"]["data"]
+    sections = r.json()["data"]["activity"]["paginatedFilteredSections"]["data"]
 
-    meetings = []
+    slots = []
     for section in sections:
         for meeting in section["meetings"]:
-            meetings.append(
-                (meeting["start_time"], meeting["end_time"])
-            )
+            slots.append((meeting["start_time"], meeting["end_time"]))
 
-    return meetings
+    return slots
