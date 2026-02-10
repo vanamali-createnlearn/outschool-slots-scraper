@@ -1,63 +1,33 @@
-import requests
-import json
-from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
-GRAPHQL_ENDPOINT = "https://outschool.com/graphql"
 
-QUERY = """
-query ClassDetailsSections($activityUid: ID!) {
-  activity(uid: $activityUid) {
-    paginatedFilteredSections(first: 50) {
-      data {
-        meetings {
-          start_time
-          end_time
-        }
-      }
-    }
-  }
-}
-"""
+GRAPHQL_KEYWORD = "ClassDetailsSections"
 
-HEADERS = {
-    "content-type": "application/json"
-}
 
-def extract_activity_uid(url: str) -> str:
-    r = requests.get(url)
-    r.raise_for_status()
+def fetch_course_slots(course):
+    url = course["url"]
+    meetings = []
 
-    soup = BeautifulSoup(r.text, "html.parser")
-    script = soup.find("script", id="__NEXT_DATA__")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-    if not script:
-        raise RuntimeError("__NEXT_DATA__ script not found")
+        def handle_response(response):
+            if GRAPHQL_KEYWORD in response.url:
+                data = response.json()
+                sections = data["data"]["activity"]["paginatedFilteredSections"]["data"]
 
-    data = json.loads(script.string)
+                for section in sections:
+                    for meeting in section["meetings"]:
+                        meetings.append(
+                            (meeting["start_time"], meeting["end_time"])
+                        )
 
-    try:
-        return data["props"]["pageProps"]["activity"]["uid"]
-    except KeyError:
-        raise RuntimeError("Activity UID not found inside __NEXT_DATA__")
+        page.on("response", handle_response)
 
-def fetch_course_slots(course: dict):
-    activity_uid = extract_activity_uid(course["url"])
+        page.goto(url, wait_until="networkidle")
+        page.wait_for_timeout(3000)
 
-    payload = {
-        "query": QUERY,
-        "variables": {
-            "activityUid": activity_uid
-        }
-    }
+        browser.close()
 
-    r = requests.post(GRAPHQL_ENDPOINT, headers=HEADERS, json=payload)
-    r.raise_for_status()
-
-    sections = r.json()["data"]["activity"]["paginatedFilteredSections"]["data"]
-
-    slots = []
-    for section in sections:
-        for meeting in section["meetings"]:
-            slots.append((meeting["start_time"], meeting["end_time"]))
-
-    return slots
+    return meetings
