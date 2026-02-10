@@ -5,7 +5,8 @@ GRAPHQL_ENDPOINT = "https://outschool.com/graphql"
 QUERY = """
 query ClassDetailsSections($activityUid: ID!) {
   activity(uid: $activityUid) {
-    paginatedFilteredSections {
+    uid
+    paginatedFilteredSections(first: 50) {
       data {
         meetings {
           start_time
@@ -17,6 +18,10 @@ query ClassDetailsSections($activityUid: ID!) {
 }
 """
 
+HEADERS = {
+    "content-type": "application/json"
+}
+
 def extract_uid(url):
     return url.split("-")[-1]
 
@@ -24,22 +29,32 @@ def fetch_course_slots(url):
     uid = extract_uid(url)
 
     payload = {
+        "operationName": "ClassDetailsSections",
         "query": QUERY,
-        "variables": {"activityUid": uid}
+        "variables": {
+            "activityUid": uid
+        }
     }
 
-    r = requests.post(GRAPHQL_ENDPOINT, json=payload)
-    r.raise_for_status()
+    response = requests.post(
+        GRAPHQL_ENDPOINT,
+        headers=HEADERS,
+        json=payload
+    )
 
-    data = r.json()
+    response.raise_for_status()
+    data = response.json()
+
+    activity = data["data"]["activity"]
+    if activity is None:
+        raise RuntimeError(f"Activity not found for UID {uid}")
 
     meetings = []
 
-    for section in data["data"]["activity"]["paginatedFilteredSections"]["data"]:
+    for section in activity["paginatedFilteredSections"]["data"]:
         for meeting in section["meetings"]:
-            meetings.append((
-                meeting["start_time"],
-                meeting["end_time"]
-            ))
+            meetings.append(
+                (meeting["start_time"], meeting["end_time"])
+            )
 
     return meetings
