@@ -19,7 +19,7 @@ def get_service():
 
 def clear_sheet(service, sheet_name):
     service.spreadsheets().values().clear(
-        spreadsheetId=SPREADSHEET_NAME,
+        spreadsheetId=SPREADSHEET_ID,
         range=sheet_name
     ).execute()
 
@@ -34,7 +34,15 @@ def write_competitor_matrices(data):
         rows.append([course["name"]])
         rows.append(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"])
 
-        day_map = {d: [] for d in ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]}
+        day_map = {
+            "Monday": [],
+            "Tuesday": [],
+            "Wednesday": [],
+            "Thursday": [],
+            "Friday": [],
+            "Saturday": [],
+            "Sunday": []
+        }
 
         for day, start, end in course["slots"]:
             day_map[day].append(f"{start}-{end}")
@@ -42,49 +50,15 @@ def write_competitor_matrices(data):
         max_rows = max(len(v) for v in day_map.values())
 
         for i in range(max_rows):
-            row = []
-            for d in ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]:
-                row.append(day_map[d][i] if i < len(day_map[d]) else "")
-            rows.append(row)
+            rows.append([
+                day_map["Monday"][i] if i < len(day_map["Monday"]) else "",
+                day_map["Tuesday"][i] if i < len(day_map["Tuesday"]) else "",
+                day_map["Wednesday"][i] if i < len(day_map["Wednesday"]) else "",
+                day_map["Thursday"][i] if i < len(day_map["Thursday"]) else "",
+                day_map["Friday"][i] if i < len(day_map["Friday"]) else "",
+                day_map["Saturday"][i] if i < len(day_map["Saturday"]) else "",
+                day_map["Sunday"][i] if i < len(day_map["Sunday"]) else "",
+            ])
 
         rows.append([])
         rows.append([])
-
-    service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_NAME,
-        range=COMPETITOR_SHEET,
-        valueInputOption="RAW",
-        body={"values": rows}
-    ).execute()
-
-def write_comparisons(course_name, comparison):
-    service = get_service()
-
-    existing = service.spreadsheets().values().get(
-        spreadsheetId=SPREADSHEET_NAME,
-        range=COMPARISON_SHEET
-    ).execute().get("values", [])
-
-    rows = existing
-
-    rows.append([f"Comparison for {course_name}"])
-    rows.append(["Missing slots (competitors have)"])
-
-    for d,s,e in sorted(comparison["missing"]):
-        rows.append([d, f"{s}-{e}"])
-
-    rows.append([])
-    rows.append(["Extra slots (we have)"])
-
-    for d,s,e in sorted(comparison["extra"]):
-        rows.append([d, f"{s}-{e}"])
-
-    rows.append([])
-    rows.append([])
-
-    service.spreadsheets().values().update(
-        spreadsheetId=SPREADSHEET_NAME,
-        range=COMPARISON_SHEET,
-        valueInputOption="RAW",
-        body={"values": rows}
-    ).execute()
