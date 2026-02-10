@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 
 COMPETITOR_SHEET = "competitor-slots"
 COMPARISON_SHEET = "comparison"
-SPREADSHEET_NAME = "roblox-slot-analyses"
+SPREADSHEET_ID = "1SYmQBiCaz_hxguFdOMVpE7DpLHK3xi1w2mYSeicGkjw"
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
