@@ -7,9 +7,16 @@ HEADERS = {"content-type": "application/json"}
 QUERY = """
 query ClassDetailsSections($activityUid: ID!) {
   activity(uid: $activityUid) {
+    uid
+    is_ongoing_weekly
     paginatedFilteredSections(first: 50) {
+      totalCount
       data {
+        uid
+        activity_uid
+        end_time
         meetings {
+          uid
           start_time
           end_time
         }
@@ -19,7 +26,7 @@ query ClassDetailsSections($activityUid: ID!) {
 }
 """
 
-UID_PATTERN = r'"Activity:([a-f0-9\\-]+)"'
+UID_PATTERN = r'"Activity:([a-f0-9\-]+)"'
 
 def extract_activity_uid(url):
     r = requests.get(url)
