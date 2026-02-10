@@ -1,1 +1,9 @@
-#placeholder
+{
+  "courses": [
+    {
+      "id": "comp_roblox_gamer_club",
+      "name": "Roblox Gamer Club",
+      "url": "https://outschool.com/classes/roblox-gamer-club-gEpK3FmN",
+      "nature": "competitor"
+    }
+}
