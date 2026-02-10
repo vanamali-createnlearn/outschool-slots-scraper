@@ -9,8 +9,21 @@ def fetch_course_slots(course):
     meetings = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox"
+            ],
+        )
+
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            viewport={"width": 1400, "height": 900}
+        )
+
+        page = context.new_page()
 
         def handle_response(response):
             try:
@@ -24,18 +37,16 @@ def fetch_course_slots(course):
                                 (meeting["start_time"], meeting["end_time"])
                             )
             except:
-                pass  # ignore non-JSON or partial responses
+                pass
 
         page.on("response", handle_response)
 
         page.goto(url, wait_until="networkidle")
-
-        # give JS time to finish any late requests
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(5000)
 
         browser.close()
 
     if not meetings:
-        raise RuntimeError("No meeting data captured — site blocked or structure changed")
+        raise RuntimeError("Blocked by anti-bot protection")
 
     return meetings
