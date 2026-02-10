@@ -1,11 +1,11 @@
 import requests
+import re
 
 GRAPHQL_ENDPOINT = "https://outschool.com/graphql"
 
 QUERY = """
 query ClassDetailsSections($activityUid: ID!) {
   activity(uid: $activityUid) {
-    uid
     paginatedFilteredSections(first: 50) {
       data {
         meetings {
@@ -18,22 +18,27 @@ query ClassDetailsSections($activityUid: ID!) {
 }
 """
 
-HEADERS = {
-    "content-type": "application/json"
-}
+HEADERS = {"content-type": "application/json"}
 
-def extract_uid(url):
-    return url.split("-")[-1]
+UID_REGEX = r'"activityUid":"([a-f0-9\\-]+)"'
+
+def extract_activity_uid(url):
+    page = requests.get(url)
+    page.raise_for_status()
+
+    match = re.search(UID_REGEX, page.text)
+
+    if not match:
+        raise RuntimeError("Could not find activity UID in page source")
+
+    return match.group(1)
 
 def fetch_course_slots(url):
-    uid = extract_uid(url)
+    activity_uid = extract_activity_uid(url)
 
     payload = {
-        "operationName": "ClassDetailsSections",
         "query": QUERY,
-        "variables": {
-            "activityUid": uid
-        }
+        "variables": {"activityUid": activity_uid}
     }
 
     response = requests.post(
@@ -45,13 +50,11 @@ def fetch_course_slots(url):
     response.raise_for_status()
     data = response.json()
 
-    activity = data["data"]["activity"]
-    if activity is None:
-        raise RuntimeError(f"Activity not found for UID {uid}")
+    sections = data["data"]["activity"]["paginatedFilteredSections"]["data"]
 
     meetings = []
 
-    for section in activity["paginatedFilteredSections"]["data"]:
+    for section in sections:
         for meeting in section["meetings"]:
             meetings.append(
                 (meeting["start_time"], meeting["end_time"])
