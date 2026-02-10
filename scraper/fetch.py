@@ -8,15 +8,13 @@ def fetch_course_slots(course):
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        # Start navigation
-        page.goto(url, wait_until="domcontentloaded")
+        # Wait explicitly for the GraphQL response while loading the page
+        with page.expect_response(lambda r: "ClassDetailsSections" in r.url) as resp:
+            page.goto(url, wait_until="domcontentloaded")
 
-        # Explicitly wait for the ClassDetailsSections GraphQL response
-        response = page.wait_for_response(
-            lambda r: "ClassDetailsSections" in r.url
-        )
-
+        response = resp.value
         data = response.json()
+
         sections = data["data"]["activity"]["paginatedFilteredSections"]["data"]
 
         meetings = []
