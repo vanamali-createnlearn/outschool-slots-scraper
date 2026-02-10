@@ -62,3 +62,36 @@ def write_competitor_matrices(data):
 
         rows.append([])
         rows.append([])
+
+def write_comparisons(course_name, comparison):
+    service = get_service()
+
+    existing = service.spreadsheets().values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=COMPARISON_SHEET
+    ).execute().get("values", [])
+
+    rows = existing
+
+    rows.append([f"Comparison for {course_name}"])
+    rows.append(["Missing slots (competitors have)"])
+
+    for day, start, end in sorted(comparison["missing"]):
+        rows.append([day, f"{start}-{end}"])
+
+    rows.append([])
+    rows.append(["Extra slots (we have)"])
+
+    for day, start, end in sorted(comparison["extra"]):
+        rows.append([day, f"{start}-{end}"])
+
+    rows.append([])
+    rows.append([])
+
+    service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=COMPARISON_SHEET,
+        valueInputOption="RAW",
+        body={"values": rows}
+    ).execute()
+
