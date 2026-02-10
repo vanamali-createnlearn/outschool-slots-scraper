@@ -1,9 +1,17 @@
 import requests
-import re
 
 GRAPHQL_ENDPOINT = "https://outschool.com/graphql"
+HEADERS = {"content-type": "application/json"}
 
-QUERY = """
+RESOLVE_UID_QUERY = """
+query ActivityBySlug($slug: String!) {
+  activityBySlug(slug: $slug) {
+    uid
+  }
+}
+"""
+
+SECTIONS_QUERY = """
 query ClassDetailsSections($activityUid: ID!) {
   activity(uid: $activityUid) {
     paginatedFilteredSections(first: 50) {
@@ -18,42 +26,42 @@ query ClassDetailsSections($activityUid: ID!) {
 }
 """
 
-HEADERS = {"content-type": "application/json"}
+def extract_slug(url):
+    return url.rstrip("/").split("/classes/")[-1]
 
-UID_REGEX = r'"activityUid":"([a-f0-9\\-]+)"'
+def resolve_activity_uid(slug):
+    payload = {
+        "query": RESOLVE_UID_QUERY,
+        "variables": {"slug": slug}
+    }
 
-def extract_activity_uid(url):
-    page = requests.get(url)
-    page.raise_for_status()
+    r = requests.post(GRAPHQL_ENDPOINT, headers=HEADERS, json=payload)
+    r.raise_for_status()
 
-    match = re.search(UID_REGEX, page.text)
+    data = r.json()
+    activity = data["data"]["activityBySlug"]
 
-    if not match:
-        raise RuntimeError("Could not find activity UID in page source")
+    if not activity:
+        raise RuntimeError(f"Could not resolve UID for slug: {slug}")
 
-    return match.group(1)
+    return activity["uid"]
 
-def fetch_course_slots(url):
-    activity_uid = extract_activity_uid(url)
+def fetch_course_slots(course):
+    slug = extract_slug(course["url"])
+    activity_uid = resolve_activity_uid(slug)
 
     payload = {
-        "query": QUERY,
+        "query": SECTIONS_QUERY,
         "variables": {"activityUid": activity_uid}
     }
 
-    response = requests.post(
-        GRAPHQL_ENDPOINT,
-        headers=HEADERS,
-        json=payload
-    )
+    r = requests.post(GRAPHQL_ENDPOINT, headers=HEADERS, json=payload)
+    r.raise_for_status()
 
-    response.raise_for_status()
-    data = response.json()
-
+    data = r.json()
     sections = data["data"]["activity"]["paginatedFilteredSections"]["data"]
 
     meetings = []
-
     for section in sections:
         for meeting in section["meetings"]:
             meetings.append(
