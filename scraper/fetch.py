@@ -1,17 +1,10 @@
 import requests
+import re
 
 GRAPHQL_ENDPOINT = "https://outschool.com/graphql"
 HEADERS = {"content-type": "application/json"}
 
-RESOLVE_UID_QUERY = """
-query ActivityBySlug($slug: String!) {
-  activityBySlug(slug: $slug) {
-    uid
-  }
-}
-"""
-
-SECTIONS_QUERY = """
+QUERY = """
 query ClassDetailsSections($activityUid: ID!) {
   activity(uid: $activityUid) {
     paginatedFilteredSections(first: 50) {
@@ -26,33 +19,27 @@ query ClassDetailsSections($activityUid: ID!) {
 }
 """
 
-def extract_slug(url):
-    return url.rstrip("/").split("/classes/")[-1]
+UID_PATTERN = r'"Activity:([a-f0-9\\-]+)"'
 
-def resolve_activity_uid(slug):
-    payload = {
-        "query": RESOLVE_UID_QUERY,
-        "variables": {"slug": slug}
-    }
-
-    r = requests.post(GRAPHQL_ENDPOINT, headers=HEADERS, json=payload)
+def extract_activity_uid(url):
+    r = requests.get(url)
     r.raise_for_status()
 
-    data = r.json()
-    activity = data["data"]["activityBySlug"]
+    match = re.search(UID_PATTERN, r.text)
 
-    if not activity:
-        raise RuntimeError(f"Could not resolve UID for slug: {slug}")
+    if not match:
+        raise RuntimeError("Could not locate activity UID in page Apollo state")
 
-    return activity["uid"]
+    return match.group(1)
 
 def fetch_course_slots(course):
-    slug = extract_slug(course["url"])
-    activity_uid = resolve_activity_uid(slug)
+    activity_uid = extract_activity_uid(course["url"])
 
     payload = {
-        "query": SECTIONS_QUERY,
-        "variables": {"activityUid": activity_uid}
+        "query": QUERY,
+        "variables": {
+            "activityUid": activity_uid
+        }
     }
 
     r = requests.post(GRAPHQL_ENDPOINT, headers=HEADERS, json=payload)
